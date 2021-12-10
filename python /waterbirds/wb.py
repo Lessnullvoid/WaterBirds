@@ -44,8 +44,8 @@ osc_host = "192.168.1.141"
 osc_port = 8000
 osc_client = []
 
-w = 480
-h = 720
+w = 320
+h = 640
 window = pygame.display.set_mode((w, h))
 
 colors = [
@@ -67,7 +67,7 @@ draw_canvas.fill(colors[0])
 
 # buttons
 labels = ["[ A ]: ", "[ B ]: "]
-btns = [pygame.draw.rect(draw_canvas, colors[4], pygame.Rect(w/2 - 100, 100+c*300, 200, 200), 2) for c in range(len(labels))]
+btns = [pygame.draw.rect(draw_canvas, colors[4], pygame.Rect(w/2 - 75, 100+c*200, 150, 150), 2) for c in range(len(labels))]
 btns_labels = [font.render(cs, 1, colors[1]) for cs in labels]
 btns_states = [False for c in labels]
 play_states = [False for c in labels]
@@ -160,16 +160,17 @@ def update_text():
 	window.blit(draw_canvas, (0, 0))
     # buttons and labels
 	for j, lab in enumerate(btns_labels):
-		window.blit(lab, (w/2 - 90, 270+j*300))
+		window.blit(lab, (w/2 - 65, 170+j*200))
 		aux_state_label = font.render("{}".format("X" if btns_states[j] else "_"), 1, colors[5])
-		window.blit(aux_state_label, (w/2 - 90+50, 270+j*300))
+		window.blit(aux_state_label, (w/2 - 65+50, 170+j*200))
 	#other_label = font.render("[step]:  {}".format(ii), 1, colors[2])
 	#window.blit(other_label, (370, 690))
 	pygame.display.flip()
 
 
+
 def init_sound():
-    global snd1, snd2, fns
+    global snd1, snd2, fnsq
     fns = glob(sounds_path+"/*.ogg")
     print (fns)
     #pygame.mixer.pre_init()
