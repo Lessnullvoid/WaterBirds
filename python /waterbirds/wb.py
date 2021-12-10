@@ -170,7 +170,7 @@ def update_text():
 
 
 def init_sound():
-    global snd1, snd2, fnsq
+    global fns
     fns = glob(sounds_path+"/*.ogg")
     print (fns)
     #pygame.mixer.pre_init()
@@ -181,6 +181,7 @@ def init_sound():
 
 
 def update_sound():
+    global snd1, snd2, fns
     if (play_states[0]):
         pygame.mixer.pre_init(devicename="Built-in Audio Analog Stereo")
         pygame.mixer.init()
