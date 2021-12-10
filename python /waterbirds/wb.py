@@ -13,13 +13,19 @@ always show a screen with two controls:
         pneumnatics
         sound + pneumatics
 
+
+log
+
+v01: L + R activation with buttons
+v02: two different devices play L+R secuencially
+
 """
 
 import pygame
 import pygame._sdl2 as sdl2
 from oscpy.client import OSCClient
 from glob import glob
-
+import time
 
 # init
 pygame.init()
@@ -81,6 +87,7 @@ ii=0
 sounds_path = './snds'
 snd1 = None
 snd2 = None
+fns = []
 
 
 # -osc
@@ -162,23 +169,42 @@ def update_text():
 
 
 def init_sound():
-    global snd1, snd2
+    global snd1, snd2, fns
     fns = glob(sounds_path+"/*.ogg")
     print (fns)
-    pygame.mixer.pre_init()
-    pygame.mixer.init()
-    snd1 = pygame.mixer.Sound(fns[0])
-    snd2 = pygame.mixer.Sound(fns[1])   
+    #pygame.mixer.pre_init()
+    #pygame.mixer.init()
+    #snd1 = pygame.mixer.Sound(fns[0])
+    #snd2 = pygame.mixer.Sound(fns[1])   
     return
 
 
 def update_sound():
     if (play_states[0]):
-            pygame.mixer.Sound.play(snd1)
-            play_states[0] = False
+        pygame.mixer.pre_init(devicename="Built-in Audio Analog Stereo")
+        pygame.mixer.init()
+        time.sleep(1)
+        snd1 = pygame.mixer.Sound(fns[0])
+        snd2 = pygame.mixer.Sound(fns[1]) 
+        pygame.mixer.Sound.play(snd1)
+        time.sleep(5)
+        pygame.mixer.Sound.play(snd2)
+        time.sleep(5)
+        pygame.mixer.quit()
+        play_states[0] = False
+
     if (play_states[1]):
-            pygame.mixer.Sound.play(snd2)
-            play_states[1] = False
+        pygame.mixer.pre_init(devicename="Sound BlasterX G1 Analog Stereo")
+        pygame.mixer.init()
+        time.sleep(1)
+        snd1 = pygame.mixer.Sound(fns[0])
+        snd2 = pygame.mixer.Sound(fns[1]) 
+        pygame.mixer.Sound.play(snd1)
+        time.sleep(5)
+        pygame.mixer.Sound.play(snd2)
+        time.sleep(5)
+        pygame.mixer.quit()
+        play_states[1] = False
     return
 
 
