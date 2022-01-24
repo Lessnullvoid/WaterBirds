@@ -1,0 +1,23 @@
+Setup the Autostart
+===================
+
+# 0. Set to boot in Desktop mode
+use menu > preferences > raspberry-pi-configuration
+
+
+# 1. Create the autostart folder
+$ mkdir /home/pi/.config/autostart
+
+# 2. Create a desktopfile
+$ nano /home/pi/.config/autostart/waterbirds.desktop
+
+# 3. Copy this to the content of waterbirds.desktop
+[Desktop Entry]
+Type=Application
+Name=waterbirds
+Exec=/usr/bin/python3 /home/pi/waterbirds/wb.py
+
+# 4. Reboot
+$ reboot
+
+# the app must run after startup the Desktop environment
