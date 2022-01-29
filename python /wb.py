@@ -3,7 +3,7 @@
 
 
 """
-[waterbirds // 21.12]
+[waterbirds // 22.01]
 
 always show a screen with two controls: 
     . auto start
@@ -26,14 +26,19 @@ v04: steady mode, osc comms, serial comms
 import pygame
 import pygame._sdl2 as sdl2
 from oscpy.client import OSCClient
+from oscpy.server import OSCThreadServer
 from glob import glob
 import time, random
 import argparse
+import serial
 
 args = None
 mode = "master"
 osc_client_a = None
 osc_client_b = None
+osc_server = None
+osc_socket = None
+serial_port=None
 
 colors = [
     (24, 48, 48),   # Medium Jungle Green
@@ -41,7 +46,7 @@ colors = [
     (216, 96, 48),  # Tangerine Bliss
     (24, 96, 96),   # Emerald Pool
     (0, 48, 48),    # Daintree
-    (212, 64, 38)   #more tanger
+    (212, 64, 38)   # more tanger
     ]
 
 # pos and states
@@ -60,19 +65,26 @@ rdelay = 0
 in_auto = False
 in_manual = False
 state = 0
-# s0: select, 
-# s1: auto,
-# s2: manual+menu, 
-# s3: manual+sound, 
-# s4: manual+pneum, 
-# s5: manual both
+past_state = 0
+# 0: select, 
+# 1: auto,
+# 2: manual menu, 
+# 3: manual+sound, 
+# 4: manual+pneum, 
+# 5: manual both
 
 # init
 pygame.init()
 window = pygame.display.set_mode((w, h))
 
-# load fonts
-font_path = 'RevMiniPixel.ttf'
+# ------------------------------------------------------------------------
+# choose base path
+base_path = "/home/pi/WaterBirds/python"
+#base_path = "/home/pi/waterbirds"
+#base_path = "/media/emme/0A/SK/PY/waterbirds"
+# ------------------------------------------------------------------------
+
+font_path = base_path+'/RevMiniPixel.ttf'
 font = pygame.font.Font(font_path, 20)
 
 # main screen for drawing buttons
@@ -102,7 +114,7 @@ TIC_TIMER = 1000
 clock = pygame.time.Clock()
 
 # sounds alloc
-sounds_path = './ogg'
+sounds_path = base_path+'/ogg'
 sndA = None
 sndB = None
 fns = []
@@ -112,10 +124,15 @@ t0b = 0
 i_a = 0
 i_b = 0
 
+# ------------------------------------------------------------------------
 # names of the devices
 device_a = "Built-in Audio Analog Stereo"
-device_b = "Audio Adapter (Planet UP-100, Genius G-Talk) Analog Stereo"
-#device_b = "Sound BlasterX G1 Analog Stereo"
+#device_b = "Audio Adapter (Planet UP-100, Genius G-Talk) Analog Stereo"
+device_b = "Sound BlasterX G1 Analog Stereo"
+# serial port name
+serial_name = "/dev/ttyUSB0"
+# ---------------------------------------------------------------------------
+
 
 def show_devices():
     # show the audio playback devices
@@ -126,23 +143,82 @@ def show_devices():
     return
 
 # -osc
-def init_osc(oha_ = "192.168.1.136", opa_ = "9105", ohb_ = "192.168.1.250", opb_ = "9106", ):
-	global osc_client_a, osc_client_b
-	osc_client_a = OSCClient(oha_, opa_)
-	osc_client_b = OSCClient(ohb_, opb_)
-	return
+def got_message(*values):
+    print("\n\n[:OSC:] got values: {}\n".format(values))
 
-def update_osc(va = 0, vb = 0):
-    global osc_client_a, osc_client_b
-    ruta = '/waterbirds/test/{}'.format(0)
-    ruta = ruta.encode()
-    osc_client_a.send_message(ruta, [va])
-    osc_client_b.send_message(ruta, [vb])
-    print("{}\t{}".format(ruta, va))
-    print("{}\t{}".format(ruta, vb))
+# --------------------------------------------------------------------------------------------------------------
+def init_comms(ha_ = "192.168.1.136", pa_ = 9105, hb_ = "192.168.1.250", pb_ = 9106, hs_="0.0.0.0", ps_=9300 ):
+    # host a, port a, host b, port b, host server, port server
+    global osc_client_a, osc_client_b, osc_server, osc_socket, serial_port
+    # init the osc comms
+    osc_client_a = OSCClient(ha_, pa_)
+    osc_client_b = OSCClient(hb_, pb_)
+    osc_server = OSCThreadServer()
+    osc_socket = osc_server.listen(address=hs_, port=ps_, default=True)
+    osc_server.bind(b'/waterbirds/slave', got_message, osc_socket)
+    osc_server.listen()
+    print ("[osc] client A at: {}".format(osc_client_a))
+    print ("[osc] client B at: {}".format(osc_client_b))
+    print ("[osc] server S at: {}".format(osc_server))
+    # init the serial comms
+    serial_port = serial.Serial(serial_name, 115200, timeout=0.050)
+    serial_port.write("ready\n".encode())
+    """ser = serial.Serial(
+        port='/dev/ttyUSB0',
+        baudrate = 115200,
+        parity=serial.PARITY_NONE,
+        stopbits=serial.STOPBITS_ONE,
+        bytesize=serial.EIGHTBITS,
+        timeout=1
+        )"""
     return
 
-# tic for the timer
+
+def update_comms():
+    global osc_client_a, osc_client_b, past_state, state, in_auto, in_manual
+    # add past_state and send messages when transition from select to auto    
+    if state==1 and past_state==0:
+        # from select to auto
+        ruta = '/waterbirds/auto'
+        ruta = ruta.encode()
+        osc_client_a.send_message(ruta, [1])
+        osc_client_b.send_message(ruta, [1])
+        serial_port.write("ready\n".encode())
+        past_state = state
+    if state==3 and past_state==2:
+        # from manual sel to sound
+        ruta = '/waterbirds/sound'
+        ruta = ruta.encode()
+        osc_client_a.send_message(ruta, [1])
+        osc_client_b.send_message(ruta, [1])
+        past_state = state
+    if state==4 and past_state==2:
+        # from manual sel to pneum
+        ruta = '/waterbirds/pneum'
+        ruta = ruta.encode()
+        osc_client_a.send_message(ruta, [1])
+        osc_client_b.send_message(ruta, [1])
+        serial_port.write("ready\n".encode())
+        past_state = state
+    if state==5 and past_state==2:
+        # from manual sel to both
+        ruta = '/waterbirds/manual'
+        ruta = ruta.encode()
+        osc_client_a.send_message(ruta, [1])
+        osc_client_b.send_message(ruta, [1])
+        serial_port.write("ready\n".encode())
+        past_state = state
+    if state==0 and past_state>0 and past_state<6:
+        # from any to sel, it is, stop
+        ruta = '/waterbirds/stop'
+        ruta = ruta.encode()
+        osc_client_a.send_message(ruta, [1])
+        osc_client_b.send_message(ruta, [1])
+        if (past_state!=3):
+            serial_port.write("stop\n".encode())
+        past_state = state
+    return
+
 def tic():
 	global ii
 	#update_osc(ii)
@@ -173,7 +249,7 @@ def handle_events():
 
 # handlear clicks del mouse
 def handle_mouse_clicks():
-    global state, in_auto, in_manual
+    global state, past_state, in_auto, in_manual
     # check for mouse pos and click
     pos = pygame.mouse.get_pos()
     pressed1, pressed2, pressed3 = pygame.mouse.get_pressed()
@@ -184,11 +260,13 @@ def handle_mouse_clicks():
                 #has btn[1] been pressed?
                 if (j==0 and not (in_auto or in_manual)):
                     in_auto = True
+                    past_state = state
                     state = 1
                     print("\n\n[B{}]: ~AUTO~ mode -------------".format(j))
                     time.sleep(0.2)
                 elif (j==1 and not (in_auto or in_manual)):
                     in_manual = True
+                    past_state = state
                     state = 2
                     print("\n\n[B{}]: ~MANUAL~ mode -----------".format(j))
                     time.sleep(0.2)
@@ -197,6 +275,7 @@ def handle_mouse_clicks():
             if (b.collidepoint(pos) and pressed1):
                 if(j==1 and in_auto):
                     in_auto = False
+                    past_state = state
                     state = 0
                     print("[B{}]: -------------- ~AUTO~ stopped\n\n".format(j))
                     time.sleep(0.2)
@@ -204,14 +283,17 @@ def handle_mouse_clicks():
         for j,b in enumerate(btns_manual):
             if (b.collidepoint(pos) and pressed1):
                 if(j==0 and in_manual):
+                    past_state = state
                     state = 3
                     print("[B{}]: ~MANUAL SOUND ONLY ".format(j))
                     time.sleep(0.2)
                 elif(j==1 and in_manual):
+                    past_state = state
                     state = 4
                     print("[B{}]: ~MANUAL PNEUM ONLY ".format(j))
                     time.sleep(0.2)
                 elif(j==2 and in_manual):
+                    past_state = state
                     state = 5
                     print("[B{}]: ~MANUAL BOTH ".format(j))
                     time.sleep(0.2)
@@ -220,6 +302,7 @@ def handle_mouse_clicks():
             if (b.collidepoint(pos) and pressed1):
                 if(j==1 and in_manual):
                     in_manual = False
+                    past_state = state
                     state = 0
                     print("[B{}]: -------------- ~MANUAL~ stopped\n\n".format(j))
                     time.sleep(0.2)
@@ -262,7 +345,7 @@ def init_sound():
     # play_timers reference
     t0a = 0
     t0b = 0
-    delay_btwn = 10
+    delay_btwn = 30
     rdelay = 1
     dtrack_a = 0
     dtrack_b = 0
@@ -277,7 +360,7 @@ def manage_sound():
     # updates timers for playing and manage manual/auto
     global sndA, sndB, fns, lenA, lenB, t0a, t0b, rdelay, dtrack_a, dtrack_b, is_playing_a, is_playing_b, i_a, i_b, current_dev
     now = time.perf_counter()
-    if in_auto:
+    if in_auto or (in_manual and (state==3 or state==5)):
         # start_playing_a
         if ( (not is_playing_a) and (not is_playing_b) and ( (now - (t0a)) > (dtrack_a + delay_btwn + rdelay) ) ):
             if (random.randint(0,1)==0): 
@@ -338,6 +421,7 @@ def game_loop():
         handle_mouse_clicks()
         manage_sound()
         update_text()
+        update_comms()
         clock.tick(9)
 
 # the main (init+loop)
@@ -345,7 +429,8 @@ def main():
     pygame.display.set_caption('[ ~~~~~ ]')
     if args['debug']:
         show_devices()
-    init_osc(args['receiver_ip_a'], args['receiver_port_a'], args['receiver_ip_b'], args['receiver_port_b'])
+    init_comms()
+    #init_comms(args['receiver_ip_a'], int(args['receiver_port_a']), args['receiver_ip_b'], int(args['receiver_port_b']))
     init_sound()
     pygame.time.set_timer(TIC_EVENT, TIC_TIMER)
     game_loop()
@@ -358,7 +443,7 @@ if __name__=="__main__":
     ap.add_argument("-d", "--debug",              default="False",            help="enables verbose for debugging")
     ap.add_argument("-r", "--receiver-ip-a",      default="192.168.1.250",    help="receiver ip address slave a")
     ap.add_argument("-p", "--receiver-port-a",    default="57120",            help="receiver osc port slave a")
-    ap.add_argument("-o", "--receiver-ip-b",      default="192.168.1.216",    help="receiver ip address slave b")
+    ap.add_argument("-s", "--receiver-ip-b",      default="192.168.1.216",    help="receiver ip address slave b")
     ap.add_argument("-q", "--receiver-port-b",    default="57120",            help="receiver osc port slave b")
     args = vars(ap.parse_args())
 

@@ -15,7 +15,7 @@ $ nano /home/pi/.config/autostart/waterbirds.desktop
 [Desktop Entry]
 Type=Application
 Name=waterbirds
-Exec=/usr/bin/python3 /home/pi/waterbirds/wb.py
+Exec=/usr/bin/python3 /home/pi/WaterBirds/python/wb.py
 
 # 4. Reboot
 $ reboot
