@@ -232,10 +232,12 @@ def handle_keys(event):
 	if (event.key == pygame.K_q):
 		running = False
 
-def exit():
+def quit():
     osc_server.close()
     #serial_port.release()
     print("[+-+] quitting waterbirds")
+    pygame.quit()
+    exit()
     return
 
 # handlear eventos con un diccionario
@@ -326,15 +328,15 @@ def update_text():
     if state==0:
         window.blit(select_canvas, (0, 0))
         for j, lab in enumerate(btns_select_labels):
-            window.blit(lab, (w/2 - 55, 170+j*240))
+            window.blit(lab, (int(w/2 - 55), 170+j*240))
     if state==1:
         window.blit(running_canvas, (0, 0))
         for j, lab in enumerate(btns_running_labels):
-            window.blit(lab, (w/2 - 55, 170+j*240))
+            window.blit(lab, (int(w/2 - 55), 170+j*240))
     if state==2:
         window.blit(manual_canvas, (0, 0))
         for j, lab in enumerate(btns_manual_labels):
-            window.blit(lab, (w/2 - 65, 140+j*155))
+            window.blit(lab, (int(w/2 - 65), 140+j*155))
     if state==3 or state==4 or state==5:
         window.blit(running_canvas, (0, 0))
         for j, lab in enumerate(btns_running_labels):
@@ -441,7 +443,7 @@ def main():
     pygame.time.set_timer(TIC_EVENT, TIC_TIMER)
     game_loop()
     print("[-_-] //...")
-    exit()
+    quit()
     return
 
 if __name__=="__main__":
