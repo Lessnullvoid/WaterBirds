@@ -30,7 +30,7 @@ from oscpy.server import OSCThreadServer
 from glob import glob
 import time, random
 import argparse
-import serial
+import serial, socket
 
 args = None
 mode = "master"
@@ -232,6 +232,12 @@ def handle_keys(event):
 	if (event.key == pygame.K_q):
 		running = False
 
+def exit():
+    osc_server.close()
+    #serial_port.release()
+    print("[+-+] quitting waterbirds")
+    return
+
 # handlear eventos con un diccionario
 def handle_events():
 	event_dict = {
@@ -332,7 +338,7 @@ def update_text():
     if state==3 or state==4 or state==5:
         window.blit(running_canvas, (0, 0))
         for j, lab in enumerate(btns_running_labels):
-            window.blit(lab, (w/2 - 55, 170+j*240))
+            window.blit(lab, (int(w/2 - 55), 170+j*240))
     pygame.display.flip()
 
 
@@ -435,6 +441,8 @@ def main():
     pygame.time.set_timer(TIC_EVENT, TIC_TIMER)
     game_loop()
     print("[-_-] //...")
+    exit()
+    return
 
 if __name__=="__main__":
     # argparse
