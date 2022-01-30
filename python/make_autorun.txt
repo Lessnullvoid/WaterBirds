@@ -23,9 +23,9 @@ $ reboot
 # the app must run after startup the Desktop environment
 
 
-# args running master:
+# args running master mode:
 python wb.py --host-a "192.168.1.105" --port-a 9105 --host-b "192.168.1.106" --port-a 9106 --port-listen 9104 --mastermode True --wserial True
 python wb.py --host-a "192.168.1.136" --port-a 9105 --host-b "192.168.1.250" --port-a 9106 --port-listen 9104
-# args running master:
-python wb.py --port-listen 9105 --mastermode False --wserial False
-python wb.py --port-listen 9106 --mastermode False
+# args running slave mode:
+python wb.py --port-listen 9105 --mastermode False 
+python wb.py --port-listen 9106 --mastermode False --wserial False

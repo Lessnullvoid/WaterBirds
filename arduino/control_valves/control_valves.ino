@@ -63,21 +63,21 @@ void loop() {
     int i=analogRead(A1) % nValvs;
     int j=analogRead(A0) % nValvs;
     aux = analogRead(A3);
-    aux = aux%3;
+    aux = aux%32;
 
-    if (aux==0){
+    if (aux<10){
       // short chirp
       dur1 = random(240, 750);
       digitalWrite(valvPins[i], HIGH);
       delay(dur1);
       digitalWrite(valvPins[i], LOW);
-    } else if(aux==1){
+    } else if(aux<20){
       // large chirp
       dur2 = random(500, 1000);
       digitalWrite(valvPins[i], HIGH);
       delay(dur2);
       digitalWrite(valvPins[i], LOW);      
-    } else if(aux==2){
+    } else if(aux<30){
       // double chirp
       dur1 = random(240, 700);
       digitalWrite(valvPins[i], HIGH);
@@ -91,9 +91,9 @@ void loop() {
       delay(dur1);
       digitalWrite(valvPins[j], LOW);
     } else {
-      delay(2000);
+      delay(10000);
     }    
-    delay(2*(dur1+dur2));
+    delay(4*(dur1+dur2));
   } else {
     for (int i=0; i<nValvs; i++){
       digitalWrite(valvPins[i], LOW);

@@ -82,9 +82,9 @@ window = pygame.display.set_mode((w, h))
 
 # ------------------------------------------------------------------------
 # choose base path
-#base_path = "/home/pi/WaterBirds/python"
+base_path = "/home/pi/WaterBirds/python"
 #base_path = "/home/pi/waterbirds"
-base_path = "/media/emme/0A/SK/PY/waterbirds"
+#base_path = "/media/emme/0A/SK/PY/waterbirds"
 # ------------------------------------------------------------------------
 
 font_path = base_path+'/RevMiniPixel.ttf'
@@ -220,10 +220,12 @@ def update_comms():
                 rutb = '/waterbirds/stop'
                 rutb = rutb.encode()
                 osc_client_b.send_message(rutb, [1])
+                serial_port.write("stop\n".encode())
             if bigstate == 2:
                 rutb = '/waterbirds/auto'
                 rutb = rutb.encode()
                 osc_client_b.send_message(rutb, [1])
+                serial_port.write("ready\n".encode())
             if bigstate == 3:
                 ruta = '/waterbirds/stop'
                 ruta = ruta.encode()
