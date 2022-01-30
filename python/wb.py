@@ -33,7 +33,9 @@ import argparse
 import serial, socket
 
 args = None
-mode = "master"
+is_master = True
+wserial = True
+
 osc_client_a = None
 osc_client_b = None
 osc_server = None
@@ -66,6 +68,7 @@ in_auto = False
 in_manual = False
 state = 0
 past_state = 0
+devbug = False
 # 0: select, 
 # 1: auto,
 # 2: manual menu, 
@@ -79,9 +82,9 @@ window = pygame.display.set_mode((w, h))
 
 # ------------------------------------------------------------------------
 # choose base path
-base_path = "/home/pi/WaterBirds/python"
+#base_path = "/home/pi/WaterBirds/python"
 #base_path = "/home/pi/waterbirds"
-#base_path = "/media/emme/0A/SK/PY/waterbirds"
+base_path = "/media/emme/0A/SK/PY/waterbirds"
 # ------------------------------------------------------------------------
 
 font_path = base_path+'/RevMiniPixel.ttf'
@@ -97,15 +100,15 @@ running_canvas.fill(colors[5])
 
 # buttons
 labels_select = ["[  AUTO  ]", "[ MANUAL ]"]
-btns_select = [pygame.draw.rect(select_canvas, colors[3], pygame.Rect(w/2 - 125, 80+c*240, 250, 200), 2) for c in range(len(labels_select))]
+btns_select = [pygame.draw.rect(select_canvas, colors[3], pygame.Rect(int(w/2 - 125), 80+c*240, 250, 200), 2) for c in range(len(labels_select))]
 btns_select_labels = [font.render(label, 1, colors[1]) for label in labels_select]
 
 labels_manual = ["[  SPEAKERS  ]", "[PNEUMATICS]", "[     BOTH     ]"]
-btns_manual = [pygame.draw.rect(manual_canvas, colors[4], pygame.Rect(w/2 - 125, 70+c*155, 250, 140), 2) for c in range(len(labels_manual))]
+btns_manual = [pygame.draw.rect(manual_canvas, colors[4], pygame.Rect(int(w/2 - 125), 70+c*155, 250, 140), 2) for c in range(len(labels_manual))]
 btns_manual_labels = [font.render(label, 1, colors[1]) for label in labels_manual]
 
 labels_running = ["+ RUNNING +","[   STOP   ]"]
-btns_running = [pygame.draw.rect(running_canvas, colors[1], pygame.Rect(w/2 - 125, 80+c*240, 250, 200), 2) for c in range(len(labels_running))]
+btns_running = [pygame.draw.rect(running_canvas, colors[1], pygame.Rect(int(w/2 - 125), 80+c*240, 250, 200), 2) for c in range(len(labels_running))]
 btns_running_labels = [font.render(label, 1, colors[0]) for label in labels_running]
 
 # timer events
@@ -124,11 +127,24 @@ t0b = 0
 i_a = 0
 i_b = 0
 
+tt0 = 0 # last point
+tt1 = 0 # actual point
+bigstate = 0
+# 0, OFFline
+# 1, slave a ON, slave n OFF
+# 2, slave a ON, slave b ON
+# 3, slave a OFF, slave b ON
+
+# 4, slave a ON , slave b OFF
+# 5, slave a ON, slave b ON
+# 6...
+
+
 # ------------------------------------------------------------------------
 # names of the devices
 device_a = "Built-in Audio Analog Stereo"
-#device_b = "Audio Adapter (Planet UP-100, Genius G-Talk) Analog Stereo"
-device_b = "Sound BlasterX G1 Analog Stereo"
+device_b = "Audio Adapter (Planet UP-100, Genius G-Talk) Analog Stereo"
+#device_b = "Sound BlasterX G1 Analog Stereo"
 # serial port name
 serial_name = "/dev/ttyUSB0"
 # ---------------------------------------------------------------------------
@@ -144,78 +160,132 @@ def show_devices():
 
 # -osc
 def got_message(*values):
-    print("\n\n[:OSC:] got values: {}\n".format(values))
+    print("\n[:OSC:] got values: {}\n".format(values))
+def got_auto(*values):
+    global state, past_state, in_auto
+    past_state = 0
+    in_auto = True
+    state = 1
+    print("\n[:OSC:] START: \n")
+def got_stop(*values):
+    global state, past_state, in_auto
+    past_state = 1
+    in_auto = False
+    state = 0
+    print("\n[:OSC:] STOP: \n")
 
 # --------------------------------------------------------------------------------------------------------------
-def init_comms(ha_ = "192.168.1.136", pa_ = 9105, hb_ = "192.168.1.250", pb_ = 9106, hs_="0.0.0.0", ps_=9300 ):
-    # host a, port a, host b, port b, host server, port server
-    global osc_client_a, osc_client_b, osc_server, osc_socket, serial_port
+def init_comms(ha_ = '192.168.1.105', pa_ = 9105, hb_ = '192.168.1.106', pb_ = 9106, hs_='0.0.0.0', ps_=9104, is_m=True, wser=True):
+    global osc_client_a, osc_client_b, osc_server, osc_socket, serial_port, wserial, is_master
     # init the osc comms
-    osc_client_a = OSCClient(ha_, pa_)
-    osc_client_b = OSCClient(hb_, pb_)
+    if is_m:
+        osc_client_a = OSCClient(ha_, pa_)
+        osc_client_b = OSCClient(hb_, pb_)
+        ruta = '/waterbirds/listen'
+        ruta = ruta.encode()
+        osc_client_a.send_message(ruta, [1])
+        ruta = '/waterbirds/listen'
+        ruta = ruta.encode()
+        osc_client_b.send_message(ruta, [1])    
+        print ("[osc] client A at: {}".format(osc_client_a.address))
+        print ("[osc] client B at: {}".format(osc_client_b.address))
+    # init the serial comms
+    if wser:
+        serial_port = serial.Serial(serial_name, 115200, timeout=0.050)
+        serial_port.write("ready\n".encode())
     osc_server = OSCThreadServer()
     osc_socket = osc_server.listen(address=hs_, port=ps_, default=True)
-    osc_server.bind(b'/waterbirds/slave', got_message, osc_socket)
+    osc_server.bind(b'/waterbirds/', got_message, osc_socket)
+    osc_server.bind(b'/waterbirds/auto', got_auto, osc_socket)
+    osc_server.bind(b'/waterbirds/stop', got_stop, osc_socket)
     osc_server.listen()
-    print ("[osc] client A at: {}".format(osc_client_a))
-    print ("[osc] client B at: {}".format(osc_client_b))
-    print ("[osc] server S at: {}".format(osc_server))
-    # init the serial comms
-    serial_port = serial.Serial(serial_name, 115200, timeout=0.050)
-    serial_port.write("ready\n".encode())
-    """ser = serial.Serial(
-        port='/dev/ttyUSB0',
-        baudrate = 115200,
-        parity=serial.PARITY_NONE,
-        stopbits=serial.STOPBITS_ONE,
-        bytesize=serial.EIGHTBITS,
-        timeout=1
-        )"""
+    print ("[osc] listening at: {}".format(osc_server.address))
     return
 
 
 def update_comms():
-    global osc_client_a, osc_client_b, past_state, state, in_auto, in_manual
+    global osc_client_a, osc_client_b, past_state, state, in_auto, in_manual, is_master, wserial, tt0, tt1, bigstate
     # add past_state and send messages when transition from select to auto    
+    if is_master:
+        tt1 = time.perf_counter() #now
+        if bigstate>0 and (tt1 - tt0) > 360:
+            bigstate = bigstate+1
+            print("[XSTATE]: {}".format(bigstate))
+            if bigstate>3: bigstate=1 
+            tt0 = time.perf_counter()
+            if bigstate == 1:
+                ruta = '/waterbirds/auto'
+                ruta = ruta.encode()
+                osc_client_a.send_message(ruta, [1])
+                rutb = '/waterbirds/stop'
+                rutb = rutb.encode()
+                osc_client_b.send_message(rutb, [1])
+            if bigstate == 2:
+                rutb = '/waterbirds/auto'
+                rutb = rutb.encode()
+                osc_client_b.send_message(rutb, [1])
+            if bigstate == 3:
+                ruta = '/waterbirds/stop'
+                ruta = ruta.encode()
+                osc_client_a.send_message(ruta, [1])
+            tt0 = time.perf_counter()
     if state==1 and past_state==0:
         # from select to auto
-        ruta = '/waterbirds/auto'
-        ruta = ruta.encode()
-        osc_client_a.send_message(ruta, [1])
-        osc_client_b.send_message(ruta, [1])
-        serial_port.write("ready\n".encode())
+        if is_master:
+            ruta = '/waterbirds/auto'
+            ruta = ruta.encode()
+            osc_client_a.send_message(ruta, [1])
+            rutab = '/waterbirds/auto'
+            rutab = rutab.encode()
+            osc_client_b.send_message(rutab, [1])
+            tt0 = time.perf_counter()
+            bigstate = 1
+            print("[XSTATE]: {}".format(bigstate))
+        if wserial:
+            serial_port.write("ready\n".encode())
         past_state = state
     if state==3 and past_state==2:
         # from manual sel to sound
-        ruta = '/waterbirds/sound'
-        ruta = ruta.encode()
-        osc_client_a.send_message(ruta, [1])
-        osc_client_b.send_message(ruta, [1])
+        if is_master:
+            ruta = '/waterbirds/sound'
+            ruta = ruta.encode()
+            osc_client_a.send_message(ruta, [1])
+            osc_client_b.send_message(ruta, [1])
         past_state = state
     if state==4 and past_state==2:
         # from manual sel to pneum
-        ruta = '/waterbirds/pneum'
-        ruta = ruta.encode()
-        osc_client_a.send_message(ruta, [1])
-        osc_client_b.send_message(ruta, [1])
-        serial_port.write("ready\n".encode())
+        if is_master:
+            ruta = '/waterbirds/pneum'
+            ruta = ruta.encode()
+            osc_client_a.send_message(ruta, [1])
+            osc_client_b.send_message(ruta, [1])
+        if wserial:
+            serial_port.write("ready\n".encode())
         past_state = state
     if state==5 and past_state==2:
         # from manual sel to both
-        ruta = '/waterbirds/manual'
-        ruta = ruta.encode()
-        osc_client_a.send_message(ruta, [1])
-        osc_client_b.send_message(ruta, [1])
-        serial_port.write("ready\n".encode())
+        if is_master:
+            ruta = '/waterbirds/manual'
+            ruta = ruta.encode()
+            osc_client_a.send_message(ruta, [1])
+            osc_client_b.send_message(ruta, [1])
+        if wserial:
+            serial_port.write("ready\n".encode())
         past_state = state
     if state==0 and past_state>0 and past_state<6:
         # from any to sel, it is, stop
-        ruta = '/waterbirds/stop'
-        ruta = ruta.encode()
-        osc_client_a.send_message(ruta, [1])
-        osc_client_b.send_message(ruta, [1])
-        if (past_state!=3):
-            serial_port.write("stop\n".encode())
+        if is_master:
+            ruta = '/waterbirds/stop'
+            ruta = ruta.encode()
+            osc_client_a.send_message(ruta, [1])
+            rutb = '/waterbirds/stop'
+            rutb = rutb.encode()
+            osc_client_b.send_message(rutb, [1])
+            bigstate = 0
+            print("[XSTATE]: {}".format(bigstate))
+        if wserial:
+            if (past_state!=3):
+                serial_port.write("stop\n".encode())
         past_state = state
     return
 
@@ -349,7 +419,10 @@ def init_sound():
     global fns, t0a, t0b, delay_btwn, dtrack_a, dtrack_b, rdelay
     fns = glob(sounds_path+"/*.ogg")
     fns.sort()
-    print ("\n".join(fns))
+    if devbug:
+        print ("\n".join(fns))
+    else:
+        print("{} sound files loaded from {}/*.ogg".format(len(fns), sounds_path))
     # play_timers reference
     t0a = 0
     t0b = 0
@@ -434,11 +507,24 @@ def game_loop():
 
 # the main (init+loop)
 def main():
+    global is_master, wserial, args, base_path
     pygame.display.set_caption('[ ~~~~~ ]')
-    if args['debug']:
+    print(args['mastermode'])
+    print(args['wserial'])
+    if args['debug']=="True":
+        base_path = "/media/emme/0A/SK/PY/waterbirds"
         show_devices()
-    init_comms()
-    #init_comms(args['receiver_ip_a'], int(args['receiver_port_a']), args['receiver_ip_b'], int(args['receiver_port_b']))
+    if args['mastermode']=="False":
+        is_master=False
+    elif args['mastermode']=="True":
+        is_master=True
+    if args['wserial']=="False":
+        wserial = False
+    elif args['wserial']=="True":
+        wserial = True
+
+    #init_comms()
+    init_comms(ha_=args['host_a'], pa_=int(args['port_a']), hb_=args['host_b'], pb_=int(args['port_b']), ps_=int(args['port_listen']), is_m=is_master, wser=wserial)
     init_sound()
     pygame.time.set_timer(TIC_EVENT, TIC_TIMER)
     game_loop()
@@ -449,12 +535,14 @@ def main():
 if __name__=="__main__":
     # argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("-m", "--mode",               default="master",           help="send data to slaves") 
-    ap.add_argument("-d", "--debug",              default="False",            help="enables verbose for debugging")
-    ap.add_argument("-r", "--receiver-ip-a",      default="192.168.1.250",    help="receiver ip address slave a")
-    ap.add_argument("-p", "--receiver-port-a",    default="57120",            help="receiver osc port slave a")
-    ap.add_argument("-s", "--receiver-ip-b",      default="192.168.1.216",    help="receiver ip address slave b")
-    ap.add_argument("-q", "--receiver-port-b",    default="57120",            help="receiver osc port slave b")
+    ap.add_argument("-m", "--mastermode",         default=True,            help="master send data to slaves") 
+    ap.add_argument("-d", "--debug",              default=False,           help="enables verbose for debugging")
+    ap.add_argument("-w", "--wserial",            default=False,            help="enables serial comms")
+    ap.add_argument("-r", "--host-a",             default="192.168.1.105",   help="receiver ip address slave a")
+    ap.add_argument("-p", "--port-a",             default=9105,            help="receiver osc port slave a")
+    ap.add_argument("-s", "--host-b",             default="192.168.1.106",   help="receiver ip address slave b")
+    ap.add_argument("-q", "--port-b",             default=9106,            help="receiver osc port slave b")
+    ap.add_argument("-l", "--port-listen",        default=9104,            help="receiver osc port slave b")
     args = vars(ap.parse_args())
 
     # real main
