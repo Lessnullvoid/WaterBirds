@@ -143,8 +143,8 @@ bigstate = 0
 # ------------------------------------------------------------------------
 # names of the devices
 device_a = "Built-in Audio Analog Stereo"
-device_b = "Audio Adapter (Planet UP-100, Genius G-Talk) Analog Stereo"
-#device_b = "Sound BlasterX G1 Analog Stereo"
+#device_b = "Audio Adapter (Planet UP-100, Genius G-Talk) Analog Stereo"
+device_b = "Sound BlasterX G1 Analog Stereo"
 # serial port name
 serial_name = "/dev/ttyUSB0"
 # ---------------------------------------------------------------------------
