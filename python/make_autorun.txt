@@ -33,13 +33,13 @@ python wb.py --port-listen 9106 --mastermode False --wserial False
 
 
 Wb02
-python wb.py --port-listen 9105 --mastermode False 
+python wb.py --port-listen 8105 --mastermode False 
 
 Wb03
-python wb.py --port-listen 9106 --mastermode False --wserial False
+python wb.py --port-listen 8106 --mastermode False --wserial False
 
 Wb01
-python wb.py --host-a "192.168.1.105" --port-a 9105 --host-b "192.168.1.106" --port-a 9106 --port-listen 9104 --mastermode True --wserial True
+python wb.py --host-a "192.168.1.105" --port-a 8105 --host-b "192.168.1.106" --port-a 8106 --port-listen 8104 --mastermode True --wserial True
 
 
 
